@@ -621,6 +621,22 @@ export async function batchRefresh(accountIds: number[]): Promise<BatchOperation
   return data
 }
 
+/**
+ * Poll whether the OAuth callback has been received for a given session
+ * @param sessionId - The OAuth session ID
+ * @param endpointPrefix - e.g. '/admin/openai' or '/admin/sora'
+ * @returns Poll result with ready flag and optional code/state/error
+ */
+export async function pollOAuthCallback(
+  sessionId: string,
+  endpointPrefix: string = '/admin/openai'
+): Promise<{ ready: boolean; code?: string; state?: string; error?: string }> {
+  const { data } = await apiClient.get<{ ready: boolean; code?: string; state?: string; error?: string }>(
+    `${endpointPrefix}/poll-callback/${sessionId}`
+  )
+  return data
+}
+
 export const accountsAPI = {
   list,
   listWithEtag,
@@ -657,7 +673,8 @@ export const accountsAPI = {
   importData,
   getAntigravityDefaultModelMapping,
   batchClearError,
-  batchRefresh
+  batchRefresh,
+  pollOAuthCallback
 }
 
 export default accountsAPI

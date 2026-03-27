@@ -155,6 +155,29 @@ export function useOpenAIOAuth(options?: UseOpenAIOAuthOptions) {
     }
   }
 
+  // Poll for OAuth callback result (for when redirect_uri is localhost:1455)
+  const pollCallback = async (): Promise<{ code: string; state: string } | null> => {
+    if (!sessionId.value) return null
+    try {
+      const result = await adminAPI.accounts.pollOAuthCallback(
+        sessionId.value,
+        endpointPrefix
+      )
+      if (!result.ready) return null
+      if (result.error) {
+        error.value = result.error
+        appStore.showError(error.value)
+        return null
+      }
+      if (result.code && result.state) {
+        return { code: result.code, state: result.state }
+      }
+      return null
+    } catch {
+      return null
+    }
+  }
+
   // Validate Sora session token and get access token
   const validateSessionToken = async (
     sessionToken: string,
@@ -236,6 +259,7 @@ export function useOpenAIOAuth(options?: UseOpenAIOAuthOptions) {
     exchangeAuthCode,
     validateRefreshToken,
     validateSessionToken,
+    pollCallback,
     buildCredentials,
     buildExtraInfo
   }

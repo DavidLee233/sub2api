@@ -43,6 +43,39 @@ func NewOpenAIOAuthService(proxyRepo ProxyRepository, oauthClient OpenAIOAuthCli
 	}
 }
 
+// PollCallbackResult is the result returned by PollCallback
+type PollCallbackResult struct {
+	Ready bool   `json:"ready"`
+	Code  string `json:"code,omitempty"`
+	State string `json:"state,omitempty"`
+	Error string `json:"error,omitempty"`
+}
+
+// PollCallback checks whether the OAuth callback for the given session has been received.
+// The frontend calls this after opening the auth URL to detect when the user completes the flow.
+func (s *OpenAIOAuthService) PollCallback(ctx context.Context, sessionID string) (*PollCallbackResult, error) {
+	session, ok := s.sessionStore.Get(sessionID)
+	if !ok {
+		return nil, infraerrors.New(http.StatusBadRequest, "OPENAI_OAUTH_SESSION_NOT_FOUND", "session not found or expired")
+	}
+
+	store := GetCallbackStore()
+	result, found := store.get(session.State)
+	if !found {
+		return &PollCallbackResult{Ready: false}, nil
+	}
+
+	if result.Error != "" {
+		return &PollCallbackResult{Ready: true, Error: result.Error}, nil
+	}
+
+	return &PollCallbackResult{
+		Ready: true,
+		Code:  result.Code,
+		State: result.State,
+	}, nil
+}
+
 // OpenAIAuthURLResult contains the authorization URL and session info
 type OpenAIAuthURLResult struct {
 	AuthURL   string `json:"auth_url"`
@@ -521,6 +554,32 @@ func (s *OpenAIOAuthService) BuildAccountCredentials(tokenInfo *OpenAITokenInfo)
 	}
 
 	return creds
+}
+
+// RevokeAccountToken revokes the OAuth token for an OpenAI/Sora OAuth account
+func (s *OpenAIOAuthService) RevokeAccountToken(ctx context.Context, account *Account) error {
+	if account.Platform != PlatformOpenAI && account.Platform != PlatformSora {
+		return infraerrors.New(http.StatusBadRequest, "OPENAI_OAUTH_INVALID_ACCOUNT", "account is not an OpenAI/Sora account")
+	}
+	if account.Type != AccountTypeOAuth {
+		return infraerrors.New(http.StatusBadRequest, "OPENAI_OAUTH_INVALID_ACCOUNT_TYPE", "account is not an OAuth account")
+	}
+
+	refreshToken := account.GetCredential("refresh_token")
+	if refreshToken == "" {
+		// No refresh token to revoke, treat as success
+		return nil
+	}
+
+	var proxyURL string
+	if account.ProxyID != nil {
+		proxy, err := s.proxyRepo.GetByID(ctx, *account.ProxyID)
+		if err == nil && proxy != nil {
+			proxyURL = proxy.URL()
+		}
+	}
+
+	return s.oauthClient.RevokeToken(ctx, refreshToken, proxyURL)
 }
 
 // Stop stops the session store cleanup goroutine

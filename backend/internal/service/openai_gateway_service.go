@@ -3306,6 +3306,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 	errorEventSent := false
 	clientDisconnected := false // 客户端断开后继续 drain 上游以收集 usage
 	sawTerminalEvent := false
+	sawDoneMarker := false
 	sendErrorEvent := func(reason string) {
 		if errorEventSent || clientDisconnected {
 			return
@@ -3330,6 +3331,12 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 		return &openaiStreamingResult{usage: usage, firstTokenMs: firstTokenMs}
 	}
 	finalizeStream := func() (*openaiStreamingResult, error) {
+		if !clientDisconnected && sawTerminalEvent && !sawDoneMarker {
+			if _, err := bufferedWriter.WriteString("data: [DONE]\n\n"); err != nil {
+				clientDisconnected = true
+				logger.LegacyPrintf("service.openai_gateway", "Client disconnected while writing synthesized [DONE], returning collected usage")
+			}
+		}
 		if !clientDisconnected {
 			if err := flushBuffered(); err != nil {
 				clientDisconnected = true
@@ -3371,6 +3378,9 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 
 		// Extract data from SSE line (supports both "data: " and "data:" formats)
 		if data, ok := extractOpenAISSEDataLine(line); ok {
+			if data == "[DONE]" {
+				sawDoneMarker = true
+			}
 
 			// Replace model in response if needed.
 			// Fast path: most events do not contain model field values.

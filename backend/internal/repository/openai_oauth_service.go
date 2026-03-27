@@ -108,6 +108,35 @@ func (s *openaiOAuthService) refreshTokenWithClientID(ctx context.Context, refre
 	return &tokenResp, nil
 }
 
+func (s *openaiOAuthService) RevokeToken(ctx context.Context, token, proxyURL string) error {
+	client, err := createOpenAIReqClient(proxyURL)
+	if err != nil {
+		return infraerrors.Newf(http.StatusBadGateway, "OPENAI_OAUTH_CLIENT_INIT_FAILED", "create HTTP client: %v", err)
+	}
+
+	formData := url.Values{}
+	formData.Set("token", token)
+	formData.Set("token_type_hint", "refresh_token")
+	formData.Set("client_id", openai.ClientID)
+
+	resp, err := client.R().
+		SetContext(ctx).
+		SetHeader("User-Agent", "codex-cli/0.91.0").
+		SetFormDataFromValues(formData).
+		Post("https://auth.openai.com/oauth/token/revoke")
+
+	if err != nil {
+		return infraerrors.Newf(http.StatusBadGateway, "OPENAI_OAUTH_REQUEST_FAILED", "revoke request failed: %v", err)
+	}
+
+	// 200 or 204 are both success; some providers return 400 for already-revoked tokens which we treat as success
+	if resp.StatusCode >= 500 {
+		return infraerrors.Newf(http.StatusBadGateway, "OPENAI_OAUTH_REVOKE_FAILED", "revoke failed: status %d, body: %s", resp.StatusCode, resp.String())
+	}
+
+	return nil
+}
+
 func createOpenAIReqClient(proxyURL string) (*req.Client, error) {
 	return getSharedReqClient(reqClientOptions{
 		ProxyURL: proxyURL,

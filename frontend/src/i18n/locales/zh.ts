@@ -443,7 +443,15 @@ export default {
     oauth: {
       code: '授权码',
       state: '状态',
-      fullUrl: '完整URL'
+      fullUrl: '完整回调链接',
+      fullUrlHint: '推荐：复制完整链接，粘贴到添加账号对话框的输入框中，系统会自动解析',
+      copy: '复制',
+      orCopyParts: '或分别复制以下参数',
+      successTitle: '授权成功',
+      successDesc: '已成功完成 OpenAI 授权，请将以下内容复制回添加账号对话框',
+      pasteInstruction: '请切换回 Sub2API 添加账号对话框，将"完整回调链接"粘贴到授权码输入框中，系统会自动识别 code 和 state 并完成账号添加。',
+      errorTitle: '授权失败',
+      waitingDesc: '等待 OAuth 授权回调...'
     },
     // 忘记密码
     forgotPassword: '忘记密码？',

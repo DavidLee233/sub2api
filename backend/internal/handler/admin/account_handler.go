@@ -631,6 +631,16 @@ func (h *AccountHandler) Delete(c *gin.Context) {
 		return
 	}
 
+	// For OpenAI/Sora OAuth accounts, revoke the token before deleting
+	account, getErr := h.adminService.GetAccount(c.Request.Context(), accountID)
+	if getErr == nil && account != nil && account.IsOAuth() &&
+		(account.Platform == "openai" || account.Platform == "sora") {
+		if revokeErr := h.openaiOAuthService.RevokeAccountToken(c.Request.Context(), account); revokeErr != nil {
+			log.Printf("[AccountHandler] Failed to revoke OpenAI OAuth token for account %d: %v", accountID, revokeErr)
+			// Continue with deletion even if revocation fails
+		}
+	}
+
 	err = h.adminService.DeleteAccount(c.Request.Context(), accountID)
 	if err != nil {
 		response.ErrorFrom(c, err)

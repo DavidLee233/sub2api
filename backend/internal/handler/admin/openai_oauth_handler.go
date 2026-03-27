@@ -232,7 +232,23 @@ func (h *OpenAIOAuthHandler) RefreshAccountToken(c *gin.Context) {
 	response.Success(c, dto.AccountFromService(updatedAccount))
 }
 
-// CreateAccountFromOAuth creates a new OpenAI/Sora OAuth account from token info
+// PollCallback polls whether the OAuth callback has been received for a given session
+// GET /api/v1/admin/openai/poll-callback/:session_id
+func (h *OpenAIOAuthHandler) PollCallback(c *gin.Context) {
+	sessionID := c.Param("session_id")
+	if sessionID == "" {
+		response.BadRequest(c, "session_id is required")
+		return
+	}
+
+	result, err := h.openaiOAuthService.PollCallback(c.Request.Context(), sessionID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, result)
+}
 // POST /api/v1/admin/openai/create-from-oauth
 // POST /api/v1/admin/sora/create-from-oauth
 func (h *OpenAIOAuthHandler) CreateAccountFromOAuth(c *gin.Context) {

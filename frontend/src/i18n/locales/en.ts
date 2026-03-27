@@ -444,7 +444,15 @@ export default {
     oauth: {
       code: 'Code',
       state: 'State',
-      fullUrl: 'Full URL'
+      fullUrl: 'Full Callback URL',
+      fullUrlHint: 'Recommended: copy the full URL and paste it into the authorization code field — it will be parsed automatically',
+      copy: 'Copy',
+      orCopyParts: 'Or copy individual parameters below',
+      successTitle: 'Authorization Successful',
+      successDesc: 'OpenAI authorization completed. Copy the callback URL back to the add account dialog.',
+      pasteInstruction: 'Switch back to the Sub2API add account dialog and paste the "Full Callback URL" into the authorization code input. The system will automatically extract the code and state.',
+      errorTitle: 'Authorization Failed',
+      waitingDesc: 'Waiting for OAuth callback...'
     },
     // Forgot password
     forgotPassword: 'Forgot password?',

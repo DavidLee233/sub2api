@@ -2830,7 +2830,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import {
@@ -3769,6 +3769,7 @@ const resetForm = () => {
 }
 
 const handleClose = () => {
+  stopOpenAIPoll()
   antigravityMixedChannelConfirmed.value = false
   clearMixedChannelDialog()
   emit('close')
@@ -4074,8 +4075,51 @@ const handleSubmit = async () => {
   })
 }
 
+// OpenAI callback polling
+let openaiPollTimer: ReturnType<typeof setInterval> | null = null
+
+const stopOpenAIPoll = () => {
+  if (openaiPollTimer !== null) {
+    clearInterval(openaiPollTimer)
+    openaiPollTimer = null
+  }
+}
+
+const startOpenAIPoll = () => {
+  stopOpenAIPoll()
+  // Poll every 2 seconds for up to 10 minutes (300 polls)
+  let pollCount = 0
+  openaiPollTimer = setInterval(async () => {
+    pollCount++
+    if (pollCount > 300) {
+      stopOpenAIPoll()
+      return
+    }
+    const oauthClient = activeOpenAIOAuth.value
+    if (!oauthClient.sessionId.value) {
+      stopOpenAIPoll()
+      return
+    }
+    const result = await oauthClient.pollCallback()
+    if (result) {
+      stopOpenAIPoll()
+      // Auto-fill auth code and exchange
+      if (oauthFlowRef.value) {
+        oauthFlowRef.value.authCode = result.code
+        oauthFlowRef.value.oauthState = result.state
+      }
+      await handleOpenAIExchange(result.code)
+    }
+  }, 2000)
+}
+
+onUnmounted(() => {
+  stopOpenAIPoll()
+})
+
 const goBackToBasicInfo = () => {
   step.value = 1
+  stopOpenAIPoll()
   oauth.resetState()
   openaiOAuth.resetState()
   soraOAuth.resetState()
@@ -4086,7 +4130,10 @@ const goBackToBasicInfo = () => {
 
 const handleGenerateUrl = async () => {
   if (form.platform === 'openai' || form.platform === 'sora') {
-    await activeOpenAIOAuth.value.generateAuthUrl(form.proxy_id)
+    const ok = await activeOpenAIOAuth.value.generateAuthUrl(form.proxy_id)
+    if (ok) {
+      startOpenAIPoll()
+    }
   } else if (form.platform === 'gemini') {
     await geminiOAuth.generateAuthUrl(
       form.proxy_id,

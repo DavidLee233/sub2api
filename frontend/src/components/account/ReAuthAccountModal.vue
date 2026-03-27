@@ -182,7 +182,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
@@ -326,14 +326,49 @@ const resetState = () => {
 }
 
 const handleClose = () => {
+  stopOpenAIPoll()
   emit('close')
 }
+
+// OpenAI callback polling
+let openaiPollTimer: ReturnType<typeof setInterval> | null = null
+
+const stopOpenAIPoll = () => {
+  if (openaiPollTimer !== null) {
+    clearInterval(openaiPollTimer)
+    openaiPollTimer = null
+  }
+}
+
+onUnmounted(() => {
+  stopOpenAIPoll()
+})
 
 const handleGenerateUrl = async () => {
   if (!props.account) return
 
   if (isOpenAILike.value) {
-    await activeOpenAIOAuth.value.generateAuthUrl(props.account.proxy_id)
+    const ok = await activeOpenAIOAuth.value.generateAuthUrl(props.account.proxy_id)
+    if (ok) {
+      // Start polling for callback
+      stopOpenAIPoll()
+      let pollCount = 0
+      openaiPollTimer = setInterval(async () => {
+        pollCount++
+        if (pollCount > 300) { stopOpenAIPoll(); return }
+        const oauthClient = activeOpenAIOAuth.value
+        if (!oauthClient.sessionId.value) { stopOpenAIPoll(); return }
+        const result = await oauthClient.pollCallback()
+        if (result) {
+          stopOpenAIPoll()
+          if (oauthFlowRef.value) {
+            oauthFlowRef.value.authCode = result.code
+            oauthFlowRef.value.oauthState = result.state
+          }
+          await handleExchangeCode()
+        }
+      }, 2000)
+    }
   } else if (isGemini.value) {
     const creds = (props.account.credentials || {}) as Record<string, unknown>
     const tierId = typeof creds.tier_id === 'string' ? creds.tier_id : undefined

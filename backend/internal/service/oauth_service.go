@@ -15,6 +15,7 @@ type OpenAIOAuthClient interface {
 	ExchangeCode(ctx context.Context, code, codeVerifier, redirectURI, proxyURL, clientID string) (*openai.TokenResponse, error)
 	RefreshToken(ctx context.Context, refreshToken, proxyURL string) (*openai.TokenResponse, error)
 	RefreshTokenWithClientID(ctx context.Context, refreshToken, proxyURL string, clientID string) (*openai.TokenResponse, error)
+	RevokeToken(ctx context.Context, token, proxyURL string) error
 }
 
 // ClaudeOAuthClient handles HTTP requests for Claude OAuth flows

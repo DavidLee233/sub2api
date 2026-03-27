@@ -139,6 +139,7 @@ import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useClipboard } from '@/composables/useClipboard'
+import { resolveExternalApiBaseUrl } from '@/utils/externalApiBaseUrl'
 import type { GroupPlatform } from '@/types'
 
 interface Props {
@@ -376,7 +377,7 @@ const comment = (value: string) => wrapToken('text-slate-500', value)
 // Syntax highlighting helpers
 // Generate file configs based on platform and active tab
 const currentFiles = computed((): FileConfig[] => {
-  const baseUrl = props.baseUrl || window.location.origin
+  const baseUrl = resolveExternalApiBaseUrl(props.baseUrl)
   const apiKey = props.apiKey
   const baseRoot = baseUrl.replace(/\/v1\/?$/, '').replace(/\/+$/, '')
   const ensureV1 = (value: string) => {
@@ -528,10 +529,12 @@ ${keyword('$env:')}${variable('GEMINI_MODEL')}${operator('=')}${string(`"${model
 function generateOpenAIFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const isWindows = activeTab.value === 'windows'
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
+  const codexBaseUrl = baseUrl.replace(/\/+$/, '').endsWith('/v1')
+    ? baseUrl.replace(/\/+$/, '')
+    : `${baseUrl.replace(/\/+$/, '')}/v1`
 
-  // config.toml content
-  const configContent = `model_provider = "OpenAI"
-model = "gpt-5.4"
+  // config.toml content aligned with official Codex CLI proxy guidance.
+  const configContent = `model = "gpt-5.4"
 review_model = "gpt-5.4"
 model_reasoning_effort = "xhigh"
 disable_response_storage = true
@@ -539,12 +542,7 @@ network_access = "enabled"
 windows_wsl_setup_acknowledged = true
 model_context_window = 1000000
 model_auto_compact_token_limit = 900000
-
-[model_providers.OpenAI]
-name = "OpenAI"
-base_url = "${baseUrl}"
-wire_api = "responses"
-requires_openai_auth = true`
+openai_base_url = "${codexBaseUrl}"`
 
   // auth.json content
   const authContent = `{
@@ -567,10 +565,12 @@ requires_openai_auth = true`
 function generateOpenAIWsFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const isWindows = activeTab.value === 'windows'
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
+  const codexBaseUrl = baseUrl.replace(/\/+$/, '').endsWith('/v1')
+    ? baseUrl.replace(/\/+$/, '')
+    : `${baseUrl.replace(/\/+$/, '')}/v1`
 
-  // config.toml content with WebSocket v2
-  const configContent = `model_provider = "OpenAI"
-model = "gpt-5.4"
+  // config.toml content with WebSocket v2 aligned with official Codex CLI proxy guidance.
+  const configContent = `model = "gpt-5.4"
 review_model = "gpt-5.4"
 model_reasoning_effort = "xhigh"
 disable_response_storage = true
@@ -578,13 +578,7 @@ network_access = "enabled"
 windows_wsl_setup_acknowledged = true
 model_context_window = 1000000
 model_auto_compact_token_limit = 900000
-
-[model_providers.OpenAI]
-name = "OpenAI"
-base_url = "${baseUrl}"
-wire_api = "responses"
-supports_websockets = true
-requires_openai_auth = true
+openai_base_url = "${codexBaseUrl}"
 
 [features]
 responses_websockets_v2 = true`
